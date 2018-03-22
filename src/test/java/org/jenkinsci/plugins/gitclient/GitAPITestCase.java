@@ -137,7 +137,7 @@ public abstract class GitAPITestCase extends TestCase {
         List<String> messages = handler.getMessages();
         List<String> substringMessages = new ArrayList<>();
         List<String> substringTimeoutMessages = new ArrayList<>();
-        final String messageRegEx = ".*\\b" + substring + "\\b.*"; // the expected substring
+        final String messageRegEx = " >.*\\b" + substring + "\\b.*"; // the expected substring
         final String timeoutRegEx = messageRegEx
                 + " [#] timeout=" + expectedTimeout + "\\b.*"; // # timeout=<value>
         for (String message : messages) {

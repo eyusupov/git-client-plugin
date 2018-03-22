@@ -402,7 +402,7 @@ public class CliGitAPIImpl extends LegacyCompatibleGitAPIImpl {
 
                 warnIfWindowsTemporaryDirNameHasSpaces();
 
-                launchCommandWithCredentials(args, workspace, cred, url, timeout);
+                launchCommandWithCredentials(args, workspace, cred, url, timeout, true);
             }
         };
     }
@@ -1624,10 +1624,19 @@ public class CliGitAPIImpl extends LegacyCompatibleGitAPIImpl {
     		@NonNull URIish url) throws GitException, InterruptedException {
     	return launchCommandWithCredentials(args, workDir, credentials, url, TIMEOUT);
     }
+
     private String launchCommandWithCredentials(ArgumentListBuilder args, File workDir,
                                                 StandardCredentials credentials,
                                                 @NonNull URIish url,
                                                 Integer timeout) throws GitException, InterruptedException {
+    	return launchCommandWithCredentials(args, workDir, credentials, url, timeout, false);
+    }
+
+    private String launchCommandWithCredentials(ArgumentListBuilder args, File workDir,
+                                                StandardCredentials credentials,
+                                                @NonNull URIish url,
+                                                Integer timeout,
+                                                boolean logOutput) throws GitException, InterruptedException {
 
         File key = null;
         File ssh = null;
@@ -1640,6 +1649,10 @@ public class CliGitAPIImpl extends LegacyCompatibleGitAPIImpl {
             if (isWindows()) {
                 env.put("GCM_INTERACTIVE", "never"); // Don't prompt for auth from git credentials manager for windows
             }
+        }
+        if (logOutput) {
+          env.put("GIT_TRACE", "1");
+          env.put("GIT_TRACE_PERFORMANCE", "1");
         }
         try {
             if (credentials instanceof SSHUserPrivateKey) {
@@ -1712,7 +1725,7 @@ public class CliGitAPIImpl extends LegacyCompatibleGitAPIImpl {
                 }
             }
 
-            return launchCommandIn(args, workDir, env, timeout);
+            return launchCommandIn(args, workDir, env, timeout, logOutput);
         } catch (IOException e) {
             throw new GitException("Failed to setup credentials", e);
         } finally {
@@ -1957,14 +1970,18 @@ public class CliGitAPIImpl extends LegacyCompatibleGitAPIImpl {
     }
 
     private String launchCommandIn(ArgumentListBuilder args, File workDir) throws GitException, InterruptedException {
-        return launchCommandIn(args, workDir, environment);
+        return launchCommandIn(args, workDir, environment, false);
     }
 
-    private String launchCommandIn(ArgumentListBuilder args, File workDir, EnvVars env) throws GitException, InterruptedException {
-    	return launchCommandIn(args, workDir, environment, TIMEOUT);
+    private String launchCommandIn(ArgumentListBuilder args, File workDir, EnvVars env, boolean logOutput) throws GitException, InterruptedException {
+    	return launchCommandIn(args, workDir, environment, TIMEOUT, logOutput);
     }
 
     private String launchCommandIn(ArgumentListBuilder args, File workDir, EnvVars env, Integer timeout) throws GitException, InterruptedException {
+      return launchCommandIn(args, workDir, env, timeout, false);
+    }
+
+    private String launchCommandIn(ArgumentListBuilder args, File workDir, EnvVars env, Integer timeout, boolean logOutput) throws GitException, InterruptedException {
         ByteArrayOutputStream fos = new ByteArrayOutputStream();
         // JENKINS-13356: capture the output of stderr separately
         ByteArrayOutputStream err = new ByteArrayOutputStream();
@@ -1992,6 +2009,11 @@ public class CliGitAPIImpl extends LegacyCompatibleGitAPIImpl {
             int status = p.start().joinWithTimeout(timeout != null ? timeout : TIMEOUT, TimeUnit.MINUTES, listener);
 
             String result = fos.toString(Charset.defaultCharset().toString());
+            String error = err.toString(Charset.defaultCharset().toString());
+            if (logOutput) {
+              if (!result.isEmpty()) listener.getLogger().println("stdout > " + result);
+              if (!error.isEmpty()) listener.getLogger().println("stderr > " + error);
+            }
             if (status != 0) {
                 throw new GitException("Command \""+command+"\" returned status code " + status + ":\nstdout: " + result + "\nstderr: "+ err.toString(Charset.defaultCharset().toString()));
             }
